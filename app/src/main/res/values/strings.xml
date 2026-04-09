@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KalviConnect</string>
+    <string name="login_title">KalviConnect</string>
+    <string name="login_subtitle">Academy Management System</string>
+    <string name="phone_hint">Enter phone number</string>
+    <string name="send_otp">Send OTP</string>
+    
+    <string name="otp_title">Verify OTP</string>
+    <string name="otp_subtitle">Enter the 6-digit code sent to your phone</string>
+    <string name="otp_hint">Enter 6-digit OTP</string>
+    <string name="verify_otp">Verify</string>
+    
+    <string name="admin_dashboard_title">Admin Dashboard</string>
+    <string name="parent_dashboard_title">Parent Dashboard</string>
+    <string name="teacher_dashboard_title">Teacher Dashboard</string>
+    <string name="student_dashboard_title">Student Dashboard</string>
+    <string name="default_dashboard_title">Dashboard</string>
+    
+    <string name="logout">Logout</string>
+    <string name="error_invalid_phone">Please enter a valid phone number</string>
+    <string name="error_invalid_otp">Please enter a valid 6-digit OTP</string>
+</resources>
