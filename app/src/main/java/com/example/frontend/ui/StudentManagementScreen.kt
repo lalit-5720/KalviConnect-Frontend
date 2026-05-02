@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.frontend.api.RetrofitClient
-import com.example.frontend.models.StudentResponse
+import com.example.frontend.models.*
 import com.example.frontend.ui.theme.*
 import com.example.frontend.utils.TokenManager
 import retrofit2.Call
@@ -202,6 +202,37 @@ fun StudentManagementScreen(navController: NavController) {
 @Composable
 fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
+    var historyRecords by remember { mutableStateOf<List<AttendanceResponse>?>(null) }
+    var isLoadingHistory by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+
+    fun fetchHistory() {
+        showHistoryDialog = true
+        isLoadingHistory = true
+        val token = tokenManager.getAccessToken()
+        if (token != null) {
+            RetrofitClient.instance.getStudentAttendanceHistory("Bearer $token", student.id)
+                .enqueue(object : Callback<List<AttendanceResponse>> {
+                    override fun onResponse(call: Call<List<AttendanceResponse>>, response: Response<List<AttendanceResponse>>) {
+                        isLoadingHistory = false
+                        if (response.isSuccessful) {
+                            historyRecords = response.body()
+                        } else {
+                            Toast.makeText(context, "Failed to load history", Toast.LENGTH_SHORT).show()
+                            showHistoryDialog = false
+                        }
+                    }
+                    override fun onFailure(call: Call<List<AttendanceResponse>>, t: Throwable) {
+                        isLoadingHistory = false
+                        Toast.makeText(context, "Network Error", Toast.LENGTH_SHORT).show()
+                        showHistoryDialog = false
+                    }
+                })
+        }
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -225,6 +256,54 @@ fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
                     Text("Cancel", color = TextSecondary)
                 }
             }
+        )
+    }
+
+    if (showHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showHistoryDialog = false },
+            title = {
+                Text("Attendance History: ${student.fullName}", fontWeight = FontWeight.Bold, color = BluePrimary)
+            },
+            text = {
+                if (isLoadingHistory) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = BluePrimary)
+                    }
+                } else if (historyRecords.isNullOrEmpty()) {
+                    Text("No attendance records found.", color = TextSecondary)
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(historyRecords!!) { record ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(record.date, fontSize = 14.sp, color = TextPrimary)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (record.isPresent) GreenAccent.copy(alpha = 0.2f) else RedError.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (record.isPresent) "Present" else "Absent",
+                                        color = if (record.isPresent) GreenAccent else RedError,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHistoryDialog = false }) {
+                    Text("Close", color = BluePrimary)
+                }
+            },
+            containerColor = Color.White
         )
     }
 
@@ -252,8 +331,19 @@ fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
                 Text(student.fullName, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Text("${student.className}-${student.section}", fontSize = 12.sp, color = TextSecondary)
                 Text("Parent: ${student.parentPhone}", fontSize = 12.sp, color = TextSecondary)
+                
+                val attendance = student.attendance_percentage ?: 0f
+                val attColor = when {
+                    attendance >= 80f -> GreenAccent
+                    attendance >= 50f -> OrangeWarning
+                    else -> RedError
+                }
+                Text("Attendance: ${attendance}%", fontSize = 12.sp, color = attColor, fontWeight = FontWeight.Bold)
             }
             Row {
+                IconButton(onClick = { fetchHistory() }) {
+                    Icon(Icons.Default.DateRange, contentDescription = "History", tint = GreenAccent, modifier = Modifier.size(20.dp))
+                }
                 IconButton(onClick = { /* Edit Logic */ }) {
                     Icon(Icons.Default.Edit, contentDescription = "Edit", tint = BluePrimary, modifier = Modifier.size(20.dp))
                 }

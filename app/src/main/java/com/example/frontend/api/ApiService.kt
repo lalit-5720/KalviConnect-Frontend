@@ -33,11 +33,16 @@ interface ApiService {
         @Query("date") date: String,
         @Query("class") className: String? = null
     ): Call<List<AttendanceResponse>>
+    @GET("/api/teacher/attendance/")
+    fun getStudentAttendanceHistory(
+        @Header("Authorization") token: String,
+        @Query("student_id") studentId: String
+    ): Call<List<AttendanceResponse>>
 
-    @POST("/api/teacher/attendance/")
+    @POST("/api/teacher/attendance/bulk-mark/")
     fun saveAttendance(
         @Header("Authorization") token: String,
-        @Body request: List<AttendanceRequest>
+        @Body request: BulkAttendanceRequest
     ): Call<ResponseBody>
 
     @GET("/api/teacher/marks/")
@@ -64,7 +69,7 @@ interface ApiService {
         @Body request: CreateFeeRequest
     ): Call<ResponseBody>
 
-    @POST("/api/teacher/fees/update/")
+    @POST("/api/teacher/fees/record-payment/")
     fun updateFee(
         @Header("Authorization") token: String,
         @Body request: UpdateFeeRequest
@@ -85,6 +90,12 @@ interface ApiService {
     fun createAnnouncement(
         @Header("Authorization") token: String,
         @Body request: CreateAnnouncementRequest
+    ): Call<ResponseBody>
+
+    @DELETE("/api/teacher/announcements/{id}/")
+    fun deleteAnnouncement(
+        @Header("Authorization") token: String,
+        @Path("id") announcementId: String
     ): Call<ResponseBody>
 
     @GET("/api/parent/dashboard/")

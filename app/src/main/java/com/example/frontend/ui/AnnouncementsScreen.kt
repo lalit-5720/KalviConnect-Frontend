@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +38,7 @@ fun AnnouncementsScreen(
     viewModel: AnnouncementsViewModel = viewModel()
 ) {
     val announcements by viewModel.announcements.collectAsState()
-    val students by v2iewModel.students.collectAsState()
+    val students by viewModel.students.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isCreating by viewModel.isCreating.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -45,6 +46,7 @@ fun AnnouncementsScreen(
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var announcementToDelete by remember { mutableStateOf<AnnouncementResponse?>(null) }
 
     LaunchedEffect(Unit) {
         val token = tokenManager.getAccessToken()
@@ -105,7 +107,10 @@ fun AnnouncementsScreen(
                     }
                 }
                 items(announcements) { announcement ->
-                    AnnouncementDetailCard(announcement)
+                    AnnouncementDetailCard(
+                        announcement = announcement,
+                        onDelete = { announcementToDelete = announcement }
+                    )
                 }
             }
         }
@@ -123,6 +128,32 @@ fun AnnouncementsScreen(
                         showCreateDialog = false
                         Toast.makeText(context, "Announcement posted!", Toast.LENGTH_SHORT).show()
                     }
+                }
+            }
+        )
+    }
+
+    if (announcementToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { announcementToDelete = null },
+            title = { Text("Delete Announcement", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this announcement? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val token = tokenManager.getAccessToken()
+                    if (token != null) {
+                        viewModel.deleteAnnouncement(token, announcementToDelete!!.id) {
+                            Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    announcementToDelete = null
+                }) {
+                    Text("Delete", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { announcementToDelete = null }) {
+                    Text("Cancel", color = TextSecondary)
                 }
             }
         )
@@ -245,7 +276,7 @@ fun CreateAnnouncementDialog(
 }
 
 @Composable
-fun AnnouncementDetailCard(announcement: AnnouncementResponse) {
+fun AnnouncementDetailCard(announcement: AnnouncementResponse, onDelete: () -> Unit) {
     val displayDate = try {
         val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
         val dateObj = parser.parse(announcement.created_at)
@@ -255,11 +286,10 @@ fun AnnouncementDetailCard(announcement: AnnouncementResponse) {
         announcement.created_at.take(10)
     }
 
-    val visibilityLabel = when (announcement.visibility) {
-        "all" -> "Public"
-        "specific_student" -> "Private"
-        "parents_only" -> "Private"
-        else -> announcement.visibility
+    val visibilityLabel = when {
+        announcement.visibility == "all" -> "Public"
+        announcement.targetStudentName != null -> "Private - ${announcement.targetStudentName.split(" ").first()}"
+        else -> "Private"
     }
 
     Card(
@@ -303,6 +333,21 @@ fun AnnouncementDetailCard(announcement: AnnouncementResponse) {
                 color = TextSecondary,
                 lineHeight = 20.sp
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }

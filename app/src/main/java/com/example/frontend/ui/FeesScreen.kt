@@ -61,21 +61,35 @@ fun FeesScreen(
         }
     }
 
+    LaunchedEffect(selectedStudent) {
+        val matchingFeeHistory = studentsFees.find { it.studentName == selectedStudent?.fullName }
+        if (matchingFeeHistory != null) {
+            totalFeeAmount = matchingFeeHistory.amount.toString()
+            paymentAmount = ""
+        } else {
+            totalFeeAmount = ""
+            paymentAmount = ""
+        }
+    }
+
     fun handleFeeCreation() {
         val token = tokenManager.getAccessToken() ?: return
         val student = selectedStudent ?: return
         
         val total = totalFeeAmount.toDoubleOrNull() ?: 0.0
-        val paid = paymentAmount.toDoubleOrNull() ?: 0.0
+        val newlyPaid = paymentAmount.toDoubleOrNull() ?: 0.0
+        
+        val matchingFeeHistory = studentsFees.find { it.studentName == student.fullName }
+        val prePaidVal = matchingFeeHistory?.amountPaid?.toDoubleOrNull() ?: 0.0
+        val cumulativePaid = prePaidVal + newlyPaid
 
-        if (total <= 0 || paid < 0 || paid > total) {
-            Toast.makeText(context, "Parameters Invalid: Ensure Paid <= Total and Total > 0.", Toast.LENGTH_SHORT).show()
+        if (total <= 0 || newlyPaid < 0 || cumulativePaid > total) {
+            Toast.makeText(context, "Parameters Invalid: Ensure New Payment + Previous Paid <= Total and Total > 0.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        viewModel.createFeeRecord(token, student.id, total, paid) {
+        viewModel.createFeeRecord(token, student.id, total, cumulativePaid) {
             Toast.makeText(context, "Fee Record created successfully!", Toast.LENGTH_SHORT).show()
-            totalFeeAmount = ""
             paymentAmount = ""
             viewModel.fetchFees(token, student.id) { } // Refresh history
         }
@@ -153,8 +167,11 @@ fun FeesScreen(
                     val matchingFeeHistory = studentsFees.find { it.studentName == selectedStudent?.fullName }
                     
                     val dynamicTotal = totalFeeAmount.toDoubleOrNull() ?: 0.0
-                    val dynamicPaid = paymentAmount.toDoubleOrNull() ?: 0.0
-                    val due = dynamicTotal - dynamicPaid
+                    val newlyPaid = paymentAmount.toDoubleOrNull() ?: 0.0
+                    val previousPaid = matchingFeeHistory?.amountPaid?.toDoubleOrNull() ?: 0.0
+                    
+                    val pendingBeforePayment = dynamicTotal - previousPaid
+                    val due = pendingBeforePayment - newlyPaid
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -184,6 +201,12 @@ fun FeesScreen(
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             
+                            if (matchingFeeHistory != null) {
+                                Text("Previous Paid: ₹${previousPaid}", fontSize = 14.sp)
+                                Text("Pending Amount: ₹${pendingBeforePayment}", fontWeight = FontWeight.Bold, color = BluePrimary)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            
                             Text("Total Fees (₹)", fontWeight = FontWeight.Bold)
                             TextField(
                                 value = totalFeeAmount,
@@ -194,7 +217,8 @@ fun FeesScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             
-                            Text("Paid Fees (₹)", fontWeight = FontWeight.Bold)
+                            val payLabel = if (matchingFeeHistory != null) "New Payment Amount (₹)" else "Paid Fees (₹)"
+                            Text(payLabel, fontWeight = FontWeight.Bold)
                             TextField(
                                 value = paymentAmount,
                                 onValueChange = { paymentAmount = it },
@@ -204,7 +228,7 @@ fun FeesScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            FeeRowItem("Due Amount", "₹${String.format("%,.0f", due)}", Color(0xFFC62828))
+                            FeeRowItem("Remaining Due", "₹${String.format("%,.0f", due)}", Color(0xFFC62828))
                             Spacer(modifier = Modifier.height(16.dp))
                             
                             Button(

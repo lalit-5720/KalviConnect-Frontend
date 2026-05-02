@@ -86,6 +86,27 @@ class AnnouncementsViewModel : ViewModel() {
             })
     }
 
+    fun deleteAnnouncement(token: String, announcementId: String, onSuccess: () -> Unit) {
+        _isLoading.value = true
+        RetrofitClient.instance.deleteAnnouncement("Bearer $token", announcementId)
+            .enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    _isLoading.value = false
+                    if (response.isSuccessful) {
+                        onSuccess()
+                        fetchAnnouncements(token) // Refresh
+                    } else {
+                        _error.value = "Failed to delete announcement"
+                    }
+                }
+
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _isLoading.value = false
+                    _error.value = t.message ?: "Network error"
+                }
+            })
+    }
+
     fun clearError() {
         _error.value = null
     }

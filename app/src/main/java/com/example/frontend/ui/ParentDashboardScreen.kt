@@ -2,6 +2,7 @@ package com.example.frontend.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -101,9 +102,10 @@ fun ParentDashboardScreen(navController: NavController) {
             NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
                 val items = listOf(
                     Triple("Home", Icons.Default.Home, 0),
-                    Triple("Marks", Icons.Default.BarChart, 1),
-                    Triple("Fees", Icons.Default.Payments, 2),
-                    Triple("Announce", Icons.Default.Campaign, 3)
+                    Triple("Attendance", Icons.Default.DateRange, 1),
+                    Triple("Marks", Icons.Default.BarChart, 2),
+                    Triple("Fees", Icons.Default.Payments, 3),
+                    Triple("Announce", Icons.Default.Campaign, 4)
                 )
                 items.forEach { (label, icon, index) ->
                     NavigationBarItem(
@@ -136,9 +138,10 @@ fun ParentDashboardScreen(navController: NavController) {
             } else {
                 when (selectedTab) {
                     0 -> ParentHomeContent(dashboardData!!)
-                    1 -> ParentMarksContent(dashboardData!!)
-                    2 -> ParentFeesContent(dashboardData!!)
-                    3 -> ParentAnnouncementsContent(dashboardData!!)
+                    1 -> ParentAttendanceNavContent(dashboardData!!)
+                    2 -> ParentMarksContent(dashboardData!!)
+                    3 -> ParentFeesContent(dashboardData!!)
+                    4 -> ParentAnnouncementsContent(dashboardData!!)
                 }
             }
         }
@@ -147,12 +150,113 @@ fun ParentDashboardScreen(navController: NavController) {
 
 @Composable
 fun ParentHomeContent(data: ParentDashboardResponse) {
+    var selectedStudentForAttendance by remember { mutableStateOf<ParentStudentData?>(null) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(data.students) { student ->
-            StudentCard(student)
+            StudentCard(
+                student = student,
+                onAttendanceClick = { selectedStudentForAttendance = student }
+            )
+        }
+    }
+
+    if (selectedStudentForAttendance != null) {
+        AlertDialog(
+            onDismissRequest = { selectedStudentForAttendance = null },
+            title = {
+                Text(
+                    text = "Attendance History",
+                    fontWeight = FontWeight.Bold,
+                    color = BluePrimary
+                )
+            },
+            text = {
+                val records = selectedStudentForAttendance?.recent_attendance ?: emptyList()
+                if (records.isEmpty()) {
+                    Text("No recent attendance records found.", color = TextSecondary)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(records) { record ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(record.date, fontSize = 14.sp, color = TextPrimary)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (record.isPresent) GreenAccent.copy(alpha = 0.2f) else RedError.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (record.isPresent) "Present" else "Absent",
+                                        color = if (record.isPresent) GreenAccent else RedError,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedStudentForAttendance = null }) {
+                    Text("Close", color = BluePrimary)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+}
+
+@Composable
+fun ParentAttendanceNavContent(data: ParentDashboardResponse) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        data.students.forEach { student ->
+            item {
+                Text(
+                    text = "Attendance History for ${student.full_name}",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            val records = student.recent_attendance ?: emptyList()
+            if (records.isEmpty()) {
+                item { Text("No attendance record available", color = TextSecondary, fontSize = 14.sp) }
+            } else {
+                items(records) { record ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(record.date, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (record.isPresent) GreenAccent.copy(alpha = 0.2f) else RedError.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = if (record.isPresent) "Present" else "Absent",
+                                    color = if (record.isPresent) GreenAccent else RedError,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -229,6 +333,30 @@ fun ParentFeesContent(data: ParentDashboardResponse) {
                         fontWeight = FontWeight.Bold,
                         color = if (student.pending_fees > 0) RedError else GreenAccent
                     )
+                    
+                    if (!student.fee_details.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Payment History", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        student.fee_details.forEach { fee ->
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Fee Amount: ₹${fee.amount}", fontSize = 13.sp, color = TextSecondary)
+                                    val statusColor = when(fee.status.lowercase()) {
+                                        "paid" -> GreenAccent
+                                        "partial" -> OrangeWarning
+                                        else -> RedError
+                                    }
+                                    Text(fee.status.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                                }
+                                Text("Paid: ₹${fee.amountPaid ?: "0.0"}", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
+                                if (fee.date != null) {
+                                    Text("Last Payment: ${fee.date.take(10)}", fontSize = 11.sp, color = TextSecondary)
+                                }
+                                Box(modifier = Modifier.padding(top = 8.dp).fillMaxWidth().height(1.dp).background(GraySecondary.copy(alpha=0.5f)))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -249,7 +377,8 @@ fun ParentAnnouncementsContent(data: ParentDashboardResponse) {
                     title = announce.title, 
                     date = announce.created_at, 
                     message = announce.message, 
-                    visibility = announce.visibility
+                    visibility = announce.visibility,
+                    targetStudentName = announce.targetStudentName
                 )
             }
         }
@@ -257,7 +386,7 @@ fun ParentAnnouncementsContent(data: ParentDashboardResponse) {
 }
 
 @Composable
-fun StudentCard(student: ParentStudentData) {
+fun StudentCard(student: ParentStudentData, onAttendanceClick: () -> Unit = {}) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -277,7 +406,12 @@ fun StudentCard(student: ParentStudentData) {
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard(title = "Attendance", value = "${student.attendance_percentage}%", icon = Icons.Default.CheckCircle, color = GreenAccent, modifier = Modifier.weight(1f))
+                val attColor = when {
+                    student.attendance_percentage >= 80f -> GreenAccent
+                    student.attendance_percentage >= 50f -> OrangeWarning
+                    else -> RedError
+                }
+                StatCard(title = "Attendance", value = "${student.attendance_percentage}%", icon = Icons.Default.CheckCircle, color = attColor, modifier = Modifier.weight(1f), onClick = onAttendanceClick)
                 StatCard(title = "Pending Fees", value = "₹${student.pending_fees}", icon = Icons.Default.Payments, color = if (student.pending_fees > 0) RedError else GreenAccent, modifier = Modifier.weight(1f))
             }
         }
@@ -285,8 +419,13 @@ fun StudentCard(student: ParentStudentData) {
 }
 
 @Composable
-fun StatCard(title: String, value: String, icon: ImageVector, color: Color, modifier: Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+fun StatCard(title: String, value: String, icon: ImageVector, color: Color, modifier: Modifier, onClick: (() -> Unit)? = null) {
+    Card(
+        modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.height(8.dp))
@@ -297,10 +436,11 @@ fun StatCard(title: String, value: String, icon: ImageVector, color: Color, modi
 }
 
 @Composable
-fun AnnouncementCard(title: String, date: String, message: String, visibility: String) {
+fun AnnouncementCard(title: String, date: String, message: String, visibility: String, targetStudentName: String? = null) {
     val displayDate = try { date.split("T")[0] } catch (e: Exception) { date }
-    val visibilityLabel = when (visibility) {
-        "all" -> "Public"
+    val visibilityLabel = when {
+        visibility == "all" -> "Public"
+        targetStudentName != null -> "Private - ${targetStudentName.split(" ").first()}"
         else -> "Private"
     }
 

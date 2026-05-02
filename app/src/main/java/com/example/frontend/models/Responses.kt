@@ -43,7 +43,8 @@ data class StudentResponse(
     val teacher: String? = null,
     val parent: String? = null,
     val created_at: String? = null,
-    val subjects: List<String>? = null
+    val subjects: List<String>? = null,
+    @SerializedName("attendance_percentage") val attendance_percentage: Float? = null
 )
 
 data class AttendanceResponse(
@@ -91,6 +92,7 @@ data class AnnouncementResponse(
     val message: String,
     val sender: String? = null,
     @SerializedName("target_class") val targetClass: String? = null,
+    @SerializedName("target_student_name") val targetStudentName: String? = null,
     val visibility: String,
     val created_at: String
 )
@@ -110,7 +112,9 @@ data class ParentStudentData(
     val created_at: String? = null,
     val attendance_percentage: Float,
     val pending_fees: Float,
-    val recent_marks: List<MarkResponse>
+    val recent_marks: List<MarkResponse>,
+    val recent_attendance: List<AttendanceResponse>? = null,
+    val fee_details: List<FeeResponse>? = null
 )
 
 data class ParentDashboardResponse(

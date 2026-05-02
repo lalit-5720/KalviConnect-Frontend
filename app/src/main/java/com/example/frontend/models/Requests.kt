@@ -26,9 +26,13 @@ data class CreateStudentRequest(
 
 data class AttendanceRequest(
     val student_id: String,
-    val date: String,
     val is_present: Boolean,
     @SerializedName("marked_by") val markedBy: String? = null
+)
+
+data class BulkAttendanceRequest(
+    val date: String,
+    val records:List<AttendanceRequest>
 )
 
 data class CreateMarkRequest(
