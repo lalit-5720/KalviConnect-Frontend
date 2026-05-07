@@ -27,6 +27,13 @@ interface ApiService {
         @Body request: CreateStudentRequest
     ): Call<ResponseBody>
 
+    @PUT("/api/teacher/students/{id}/")
+    fun updateStudent(
+        @Header("Authorization") token: String,
+        @Path("id") studentId: String,
+        @Body request: CreateStudentRequest
+    ): Call<ResponseBody>
+
     @GET("/api/teacher/attendance/")
     fun getAttendance(
         @Header("Authorization") token: String,

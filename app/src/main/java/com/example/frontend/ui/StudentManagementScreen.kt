@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,7 +30,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun StudentManagementScreen(navController: NavController) {
     var searchQuery by remember { mutableStateOf("") }
@@ -190,6 +192,25 @@ fun StudentManagementScreen(navController: NavController) {
                                             }
                                         })
                                 }
+                            },
+                            onEdit = { id, request ->
+                                val token = tokenManager.getAccessToken()
+                                if (token != null) {
+                                    RetrofitClient.instance.updateStudent("Bearer $token", id, request)
+                                        .enqueue(object : Callback<okhttp3.ResponseBody> {
+                                            override fun onResponse(call: Call<okhttp3.ResponseBody>, response: Response<okhttp3.ResponseBody>) {
+                                                if (response.isSuccessful) {
+                                                    Toast.makeText(context, "Student updated successfully", Toast.LENGTH_SHORT).show()
+                                                    fetchStudents(searchQuery) // refresh list
+                                                } else {
+                                                    Toast.makeText(context, "Failed to update", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                            override fun onFailure(call: Call<okhttp3.ResponseBody>, t: Throwable) {
+                                                Toast.makeText(context, "Network error", Toast.LENGTH_SHORT).show()
+                                            }
+                                        })
+                                }
                             }
                         )
                     }
@@ -200,8 +221,9 @@ fun StudentManagementScreen(navController: NavController) {
 }
 
 @Composable
-fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
+fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit, onEdit: (String, CreateStudentRequest) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
     var historyRecords by remember { mutableStateOf<List<AttendanceResponse>?>(null) }
     var isLoadingHistory by remember { mutableStateOf(false) }
@@ -255,6 +277,17 @@ fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
                 TextButton(onClick = { showDeleteDialog = false }) {
                     Text("Cancel", color = TextSecondary)
                 }
+            }
+        )
+    }
+
+    if (showEditDialog) {
+        EditStudentDialog(
+            student = student,
+            onDismiss = { showEditDialog = false },
+            onSave = { request ->
+                showEditDialog = false
+                onEdit(student.id, request)
             }
         )
     }
@@ -344,7 +377,7 @@ fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
                 IconButton(onClick = { fetchHistory() }) {
                     Icon(Icons.Default.DateRange, contentDescription = "History", tint = GreenAccent, modifier = Modifier.size(20.dp))
                 }
-                IconButton(onClick = { /* Edit Logic */ }) {
+                IconButton(onClick = { showEditDialog = true }) {
                     Icon(Icons.Default.Edit, contentDescription = "Edit", tint = BluePrimary, modifier = Modifier.size(20.dp))
                 }
                 IconButton(onClick = { showDeleteDialog = true }) {
@@ -353,4 +386,89 @@ fun StudentCard(student: StudentResponse, onDelete: (String) -> Unit) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EditStudentDialog(
+    student: StudentResponse,
+    onDismiss: () -> Unit,
+    onSave: (CreateStudentRequest) -> Unit
+) {
+    var fullName by remember { mutableStateOf(student.fullName) }
+    var className by remember { mutableStateOf(student.className) }
+    var section by remember { mutableStateOf(student.section) }
+    var parentName by remember { mutableStateOf(student.parentName) }
+    var parentPhone by remember { mutableStateOf(student.parentPhone) }
+    var address by remember { mutableStateOf(student.address ?: "") }
+    
+    var currentSubject by remember { mutableStateOf("") }
+    val subjects = remember { mutableStateListOf(*(student.subjects?.toTypedArray() ?: emptyArray())) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Student Details", fontWeight = FontWeight.Bold, color = BluePrimary) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).fillMaxWidth()) {
+                OutlinedTextField(value = fullName, onValueChange = { fullName = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    OutlinedTextField(value = className, onValueChange = { className = it }, label = { Text("Class") }, modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedTextField(value = section, onValueChange = { section = it }, label = { Text("Section") }, modifier = Modifier.weight(1f))
+                }
+                OutlinedTextField(value = parentName, onValueChange = { parentName = it }, label = { Text("Parent Name") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+                OutlinedTextField(value = parentPhone, onValueChange = { parentPhone = it }, label = { Text("Parent Phone") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+                OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+                
+                Text("Subjects", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = currentSubject, onValueChange = { currentSubject = it }, placeholder = { Text("Add Subject") }, modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = currentSubject.trim()
+                            if (trimmed.isNotBlank() && !subjects.contains(trimmed)) {
+                                subjects.add(trimmed)
+                                currentSubject = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                    ) { Text("Add") }
+                }
+                if (subjects.isNotEmpty()) {
+                    FlowRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        subjects.forEach { subject ->
+                            InputChip(
+                                selected = false,
+                                onClick = { subjects.remove(subject) },
+                                label = { Text(subject) },
+                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(CreateStudentRequest(
+                        full_name = fullName,
+                        class_name = className,
+                        section = section,
+                        parentName = parentName,
+                        parentPhone = parentPhone,
+                        address = address,
+                        dob = student.dob,
+                        subjects = subjects.toList()
+                    ))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+            ) { Text("Save Changes") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        },
+        containerColor = Color.White
+    )
 }

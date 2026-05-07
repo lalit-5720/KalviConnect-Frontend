@@ -76,7 +76,6 @@ fun SettingsScreen(navController: NavController) {
 
             // Settings List
             SettingsItem(icon = Icons.Default.AccountCircle, title = "Profile Details") { }
-            SettingsItem(icon = Icons.Default.Notifications, title = "Notification Settings") { }
             SettingsItem(icon = Icons.Default.Lock, title = "Security & Privacy") { }
             SettingsItem(icon = Icons.Default.Help, title = "Help & Support") { }
             SettingsItem(icon = Icons.Default.Info, title = "About Kalvi Academy") { }

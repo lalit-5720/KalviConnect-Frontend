@@ -4,12 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -17,7 +14,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.frontend.ui.theme.BluePrimary
 import com.example.frontend.ui.theme.KalviConnectTheme
 import com.example.frontend.utils.TokenManager
 
@@ -46,9 +42,10 @@ class MainActivity : ComponentActivity() {
 fun MainNavigation() {
     val navController = rememberNavController()
     val context = LocalContext.current
+    
     val tokenManager = remember { TokenManager(context) }
     
-    // 4. Calculate start destination immediately to avoid initial black frame / broken channel crashes
+    // Calculate start destination immediately to avoid initial black frame / broken channel crashes
     val startDestination = remember {
         val token = tokenManager.getAccessToken()
         if (!token.isNullOrEmpty()) {

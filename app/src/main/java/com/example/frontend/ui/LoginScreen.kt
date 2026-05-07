@@ -87,7 +87,7 @@ fun LoginScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Welcome to Kalvi Academy",
+                text = "Welcome to Kalvi Connect",
                 style = MaterialTheme.typography.titleLarge,
                 color = TextPrimary
             )
@@ -127,7 +127,6 @@ fun LoginScreen(navController: NavController) {
             OutlinedTextField(
                 value = phoneNumber,
                 onValueChange = { input -> 
-                    // Only allow digits and max length 10
                     if (input.all { it.isDigit() } && input.length <= 10) {
                         phoneNumber = input
                     }
@@ -165,13 +164,14 @@ fun LoginScreen(navController: NavController) {
                                     }
                                     navController.navigate("otp/$fullPhone/$selectedRole")
                                 } else {
-                                    Toast.makeText(context, "Failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Server Error: ${response.code()}", Toast.LENGTH_LONG).show()
                                 }
                             }
 
                             override fun onFailure(call: Call<SendOtpResponse>, t: Throwable) {
                                 isLoading = false
-                                Toast.makeText(context, "Check Connection", Toast.LENGTH_SHORT).show()
+                                // Show exact error message to debug connection
+                                Toast.makeText(context, "Connection Error: ${t.localizedMessage}", Toast.LENGTH_LONG).show()
                             }
                         })
                     }

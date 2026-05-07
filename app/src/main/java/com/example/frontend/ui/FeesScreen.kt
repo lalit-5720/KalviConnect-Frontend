@@ -43,7 +43,7 @@ fun FeesScreen(
     var expanded by remember { mutableStateOf(false) }
     
     // Dual Input Requirements
-    var totalFeeAmount by remember { mutableStateOf("") }
+    var newFeeChargeAmount by remember { mutableStateOf("") }
     var paymentAmount by remember { mutableStateOf("") }
 
     LaunchedEffect(error) {
@@ -62,36 +62,43 @@ fun FeesScreen(
     }
 
     LaunchedEffect(selectedStudent) {
-        val matchingFeeHistory = studentsFees.find { it.studentName == selectedStudent?.fullName }
-        if (matchingFeeHistory != null) {
-            totalFeeAmount = matchingFeeHistory.amount.toString()
-            paymentAmount = ""
-        } else {
-            totalFeeAmount = ""
-            paymentAmount = ""
-        }
+        newFeeChargeAmount = ""
+        paymentAmount = ""
     }
 
-    fun handleFeeCreation() {
+    fun handleRecordPayment() {
         val token = tokenManager.getAccessToken() ?: return
         val student = selectedStudent ?: return
         
-        val total = totalFeeAmount.toDoubleOrNull() ?: 0.0
         val newlyPaid = paymentAmount.toDoubleOrNull() ?: 0.0
         
-        val matchingFeeHistory = studentsFees.find { it.studentName == student.fullName }
-        val prePaidVal = matchingFeeHistory?.amountPaid?.toDoubleOrNull() ?: 0.0
-        val cumulativePaid = prePaidVal + newlyPaid
-
-        if (total <= 0 || newlyPaid < 0 || cumulativePaid > total) {
-            Toast.makeText(context, "Parameters Invalid: Ensure New Payment + Previous Paid <= Total and Total > 0.", Toast.LENGTH_SHORT).show()
+        if (newlyPaid <= 0) {
+            Toast.makeText(context, "Please enter a valid payment amount.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        viewModel.createFeeRecord(token, student.id, total, cumulativePaid) {
-            Toast.makeText(context, "Fee Record created successfully!", Toast.LENGTH_SHORT).show()
+        viewModel.updatePayment(token, student.id, newlyPaid) {
+            Toast.makeText(context, "Payment recorded successfully!", Toast.LENGTH_SHORT).show()
             paymentAmount = ""
-            viewModel.fetchFees(token, student.id) { } // Refresh history
+            viewModel.fetchFees(token, student.id) { }
+        }
+    }
+
+    fun handleAddNewCharge() {
+        val token = tokenManager.getAccessToken() ?: return
+        val student = selectedStudent ?: return
+        
+        val newCharge = newFeeChargeAmount.toDoubleOrNull() ?: 0.0
+        
+        if (newCharge <= 0) {
+            Toast.makeText(context, "Please enter a valid charge amount.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        viewModel.createFeeRecord(token, student.id, newCharge, 0.0) {
+            Toast.makeText(context, "New charge added successfully!", Toast.LENGTH_SHORT).show()
+            newFeeChargeAmount = ""
+            viewModel.fetchFees(token, student.id) { }
         }
     }
 
@@ -164,15 +171,16 @@ fun FeesScreen(
 
                 // DUAL FEE INPUT SECTION
                 if (selectedStudent != null) {
-                    val matchingFeeHistory = studentsFees.find { it.studentName == selectedStudent?.fullName }
+                    val matchingFees = studentsFees.filter { it.studentName == selectedStudent?.fullName }
                     
-                    val dynamicTotal = totalFeeAmount.toDoubleOrNull() ?: 0.0
+                    val amt = matchingFees.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val previousPaid = matchingFees.sumOf { it.amountPaid?.toDoubleOrNull() ?: 0.0 }
+                    val pendingAmount = amt - previousPaid
+                    
                     val newlyPaid = paymentAmount.toDoubleOrNull() ?: 0.0
-                    val previousPaid = matchingFeeHistory?.amountPaid?.toDoubleOrNull() ?: 0.0
-                    
-                    val pendingBeforePayment = dynamicTotal - previousPaid
-                    val due = pendingBeforePayment - newlyPaid
+                    val dueAfterPayment = pendingAmount - newlyPaid
 
+                    // RECORD PAYMENT CARD
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -185,40 +193,14 @@ fun FeesScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("New Fee Parameters", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                Surface(
-                                    color = if (due <= 0 && dynamicTotal > 0) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    Text(
-                                        text = if (due <= 0 && dynamicTotal > 0) "Completed" else "Due calculation...",
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                        color = if (due <= 0 && dynamicTotal > 0) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text("Record a Payment", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = BluePrimary)
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            if (matchingFeeHistory != null) {
-                                Text("Previous Paid: ₹${previousPaid}", fontSize = 14.sp)
-                                Text("Pending Amount: ₹${pendingBeforePayment}", fontWeight = FontWeight.Bold, color = BluePrimary)
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            
-                            Text("Total Fees (₹)", fontWeight = FontWeight.Bold)
-                            TextField(
-                                value = totalFeeAmount,
-                                onValueChange = { totalFeeAmount = it },
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFFF3F4F6), unfocusedContainerColor = Color(0xFFF3F4F6), unfocusedIndicatorColor = Color.Transparent, focusedIndicatorColor = Color.Transparent),
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                            Text("Current Pending Fees: ₹${String.format("%.2f", pendingAmount)}", fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(12.dp))
                             
-                            val payLabel = if (matchingFeeHistory != null) "New Payment Amount (₹)" else "Paid Fees (₹)"
-                            Text(payLabel, fontWeight = FontWeight.Bold)
+                            Text("Payment Amount (₹)", fontWeight = FontWeight.Bold, color = TextSecondary)
                             TextField(
                                 value = paymentAmount,
                                 onValueChange = { paymentAmount = it },
@@ -228,24 +210,68 @@ fun FeesScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            FeeRowItem("Remaining Due", "₹${String.format("%,.0f", due)}", Color(0xFFC62828))
-                            Spacer(modifier = Modifier.height(16.dp))
+                            if (newlyPaid > 0) {
+                                FeeRowItem("Remaining Due After Payment", "₹${String.format("%.2f", dueAfterPayment)}", if (dueAfterPayment <= 0) Color(0xFF2E7D32) else Color(0xFFC62828))
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
                             
                             Button(
-                                onClick = { handleFeeCreation() },
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                                onClick = { handleRecordPayment() },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = GreenAccent),
                                 shape = RoundedCornerShape(12.dp),
                                 enabled = !isUpdating 
                             ) {
-                                if (isUpdating) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                                else Text("Commit Fees", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                if (isUpdating) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                                else Text("Record Payment", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+                    }
+
+                    // ADD NEW CHARGE CARD
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Add New Fee Charge", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = OrangeWarning)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Use this to add fees for a new subject, term, or fine.", fontSize = 12.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text("New Charge Amount (₹)", fontWeight = FontWeight.Bold, color = TextSecondary)
+                            TextField(
+                                value = newFeeChargeAmount,
+                                onValueChange = { newFeeChargeAmount = it },
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFFFFF3E0), unfocusedContainerColor = Color(0xFFFFF3E0), unfocusedIndicatorColor = Color.Transparent, focusedIndicatorColor = Color.Transparent),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Button(
+                                onClick = { handleAddNewCharge() },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = OrangeWarning),
+                                shape = RoundedCornerShape(12.dp),
+                                enabled = !isUpdating 
+                            ) {
+                                if (isUpdating) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                                else Text("Add Charge", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
                         }
                     }
 
                     // PAYMENT HISTORY SECTION
-                    if (matchingFeeHistory != null) {
+                    if (matchingFees.isNotEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -256,9 +282,52 @@ fun FeesScreen(
                                 Text("Archived Fee Records", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
-                                FeeRowItem("Historical Total Fee", "₹${matchingFeeHistory.amount}", Color.Black)
-                                FeeRowItem("Total Paid Cumulatively", "₹${matchingFeeHistory.amountPaid}", Color(0xFF2E7D32))
+                                FeeRowItem("Historical Total Fee", "₹${String.format("%.2f", amt)}", Color.Black)
+                                FeeRowItem("Total Paid Cumulatively", "₹${String.format("%.2f", previousPaid)}", Color(0xFF2E7D32))
                             }
+                        }
+                    }
+                }
+
+                // STUDENT FEE SUMMARY & PDF EXPORT
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Student Fee Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Button(
+                                onClick = { exportToPdf(context, students, studentsFees) },
+                                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                            ) {
+                                Text("Export PDF", color = Color.White)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        students.forEach { student ->
+                            val matchingFees = studentsFees.filter { it.studentName == student.fullName }
+                            val amt = matchingFees.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                            val paid = matchingFees.sumOf { it.amountPaid?.toDoubleOrNull() ?: 0.0 }
+                            val pending = amt - paid
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(student.fullName, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("₹${String.format("%.2f", pending)}", 
+                                     color = if (pending > 0) Color(0xFFC62828) else Color(0xFF2E7D32),
+                                     fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            HorizontalDivider(color = Color(0xFFEEEEEE))
                         }
                     }
                 }
@@ -277,4 +346,53 @@ fun FeeRowItem(label: String, value: String, valueColor: Color) {
         Text(label, color = Color.Gray, fontSize = 14.sp)
         Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     }
+}
+
+fun exportToPdf(context: android.content.Context, students: List<com.example.frontend.models.StudentResponse>, studentsFees: List<com.example.frontend.models.FeeResponse>) {
+    val document = android.graphics.pdf.PdfDocument()
+    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
+    val page = document.startPage(pageInfo)
+    val canvas = page.canvas
+    val paint = android.graphics.Paint()
+    
+    paint.textSize = 18f
+    paint.isFakeBoldText = true
+    canvas.drawText("Student Fee Summary", 50f, 50f, paint)
+    
+    paint.textSize = 14f
+    paint.isFakeBoldText = false
+    var yPosition = 100f
+    
+    canvas.drawText("Student Name", 50f, yPosition, paint)
+    canvas.drawText("Pending Amount (Rs)", 350f, yPosition, paint)
+    
+    yPosition += 20f
+    canvas.drawLine(50f, yPosition, 500f, yPosition, paint)
+    yPosition += 20f
+    
+    for (student in students) {
+        val matchingFees = studentsFees.filter { it.studentName == student.fullName }
+        val amt = matchingFees.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+        val paid = matchingFees.sumOf { it.amountPaid?.toDoubleOrNull() ?: 0.0 }
+        val pending = amt - paid
+        
+        canvas.drawText(student.fullName, 50f, yPosition, paint)
+        canvas.drawText(String.format("%.2f", pending), 350f, yPosition, paint)
+        yPosition += 30f
+        
+        if (yPosition > 800f) break
+    }
+    
+    document.finishPage(page)
+    
+    val directory = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+    val file = java.io.File(directory, "Fee_Summary_${System.currentTimeMillis()}.pdf")
+    
+    try {
+        document.writeTo(java.io.FileOutputStream(file))
+        android.widget.Toast.makeText(context, "PDF saved to Downloads folder", android.widget.Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Error saving PDF: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    document.close()
 }
